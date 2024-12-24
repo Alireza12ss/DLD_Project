@@ -68,7 +68,7 @@ always @(posedge clk) begin
     end 
     else if (internal_open_door || internal_full) begin
         if (current_state == FULL) begin
-            if (delay_counter < 14) // 6 ثانیه
+            if (delay_counter < 51) // 6 ثانیه
                 delay_counter <= delay_counter + 1;
             else
                 delay_counter <= 0; 
@@ -106,7 +106,7 @@ always @(posedge clk) begin
         end
         FULL: begin
             internal_full = 1;
-            if (delay_counter == 13)begin
+            if (delay_counter == 30)begin
                 internal_full = 0;
                 next_state = IDLE;
             end
@@ -115,7 +115,7 @@ always @(posedge clk) begin
         end
         DOOR_OPEN: begin
             internal_open_door = 1;
-            if (delay_counter == 50)begin
+            if (delay_counter == 30)begin
                 internal_open_door = 0;
                 next_state = IDLE;
             end
@@ -123,7 +123,7 @@ always @(posedge clk) begin
                 next_state = DOOR_OPEN;
         end
         CHECK_EXIT: begin
-            if(capacity == 3'b000)begin
+            if(capacity == 3'b100)begin
                 next_state = IDLE;
             end
             else begin
@@ -132,7 +132,7 @@ always @(posedge clk) begin
                         (parkings[1] == 0) ? 2'b01 :
                         (parkings[2] == 0) ? 2'b10 : 2'b11;
             capacity = capacity + 1;
-            next_state = IDLE;
+            next_state = DOOR_OPEN;
             end
         end
     endcase
@@ -265,19 +265,19 @@ module main_tb;
 
         // Test: Entry to parking
         #50 Entry_sensor = 1; // Car at entry
-        #100 Entry_sensor = 0; // Car entered
+        #60 Entry_sensor = 0; // Car entered
 
         // Test: Another entry
         #50 Entry_sensor = 1;
-        #100 Entry_sensor = 0;
+        #60 Entry_sensor = 0;
 
         // Test: Another entry
         #50 Entry_sensor = 1;
-        #100 Entry_sensor = 0;
+        #60 Entry_sensor = 0;
 
         // Test: Another entry
         #50 Entry_sensor = 1;
-        #100 Entry_sensor = 0;
+        #60 Entry_sensor = 0;
 
         // Test: Another entry
         #50 Entry_sensor = 1;
