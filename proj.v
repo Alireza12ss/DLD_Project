@@ -9,7 +9,9 @@ module main(
     output reg [3:0] parkings,
     output reg [2:0] capacity,
     output reg [1:0] location,
-    output reg [2:0] state
+    output reg [2:0] state,
+    output reg internal_full,
+    output reg internal_open_door
 );
 
 parameter IDLE = 3'b000,
@@ -17,16 +19,12 @@ parameter IDLE = 3'b000,
           CHECK_EXIT = 3'b010,
           FULL = 3'b011,
           DOOR_OPEN = 3'b100,
-          PARK_CAR = 3'b101,
           UPDATE_DISPLAY = 3'b110;
 
 reg [2:0] current_state, next_state;
 
 wire open_door;
 wire full;
-reg internal_full;
-reg internal_open_door;
-
 
 
 assign full = internal_full;
@@ -47,6 +45,8 @@ FrequencyDividerController controller(
 
 initial begin
     current_state = IDLE;
+    internal_full = 0;
+    internal_open_door =0;
     parkings = 4'b0000;
     location = 2'b00;
     capacity = 3'b100;
@@ -56,6 +56,10 @@ end
 always @(posedge clk or posedge reset) begin
     state <= current_state;
     if (reset) begin
+        parkings = 4'b0000;
+        location = 2'b00;
+        capacity = 3'b100;
+        delay_counter = 0;
         current_state <= IDLE;
     end else begin
         current_state <= next_state;
@@ -68,12 +72,12 @@ always @(posedge clk) begin
     end 
     else if (internal_open_door || internal_full) begin
         if (current_state == FULL) begin
-            if (delay_counter < 51) // 6 ثانیه
+            if (delay_counter < 41) 
                 delay_counter <= delay_counter + 1;
             else
                 delay_counter <= 0; 
         end else if (current_state == DOOR_OPEN) begin
-            if (delay_counter < 51) // 10 ثانیه
+            if (delay_counter < 51) 
                 delay_counter <= delay_counter + 1;
             else
                 delay_counter <= 0; 
@@ -104,28 +108,10 @@ always @(posedge clk) begin
                 next_state = DOOR_OPEN;
             end
         end
-        FULL: begin
-            internal_full = 1;
-            if (delay_counter == 30)begin
-                internal_full = 0;
-                next_state = IDLE;
-            end
-            else
-                next_state = FULL;
-        end
-        DOOR_OPEN: begin
-            internal_open_door = 1;
-            if (delay_counter == 30)begin
-                internal_open_door = 0;
-                next_state = IDLE;
-            end
-            else
-                next_state = DOOR_OPEN;
-        end
         CHECK_EXIT: begin
-            if(capacity == 3'b100)begin
+            if(capacity == 3'b100 | parkings[Exit_parking] == 0)begin
                 next_state = IDLE;
-            end
+            end 
             else begin
             parkings[Exit_parking] = 0;
             location <= (parkings[0] == 0) ? 2'b00 :
@@ -134,6 +120,26 @@ always @(posedge clk) begin
             capacity = capacity + 1;
             next_state = DOOR_OPEN;
             end
+        end
+        FULL: begin
+        //3times 1s
+            internal_full = 1;
+            if (delay_counter == 36)begin
+                internal_full = 0;
+                next_state = IDLE;
+            end
+            else
+                next_state = FULL;
+        end
+        DOOR_OPEN: begin
+            //10 s / 2hz
+            internal_open_door = 1;
+            if (delay_counter == 35)begin
+                internal_open_door = 0;
+                next_state = IDLE;
+            end
+            else
+                next_state = DOOR_OPEN;
         end
     endcase
 end
@@ -144,8 +150,8 @@ module FrequencyDividerController (
     input wire reset,
     input wire full,
     input wire open_door,
-    output reg open_door_output,
-    output reg full_output
+    output reg open_door_output, // open door 1
+    output reg full_output // full 1
 );
 
 reg [3:0] full_counter;
@@ -228,6 +234,8 @@ module main_tb;
     wire [2:0] capacity;
     wire [1:0] location;
     wire [2:0] state;
+    wire internal_full;
+    wire internal_open_door;
 
     // Instantiate the main module
     main uut (
@@ -241,64 +249,71 @@ module main_tb;
         .parkings(parkings),
         .capacity(capacity),
         .location(location),
-        .state(state)
+        .state(state),
+        .internal_full(internal_full),
+        .internal_open_door(internal_open_door)
     );
 
     // Clock generation
     initial begin
         clk = 0;
-        forever #1 clk = ~clk; // 50 MHz clock
+        forever #12.5 clk = ~clk; 
     end
+
+
+
+    integer input_file, output_file, scan_file;
+    reg [3:0] input_data;
 
     // Test sequence
     initial begin
-        $dumpfile("main_tb.vcd"); // Generate waveform file
-        $dumpvars(1, main_tb);
+        $dumpfile("main_tb.vcd");
+        $dumpvars(0, main_tb);
 
-        // Initial conditions
         reset = 1;
         Entry_sensor = 0;
         Exit_sensor = 0;
         Exit_parking = 2'b00;
+        input_data = 4'b0000;
+        #25;
+        reset = 0;
+        #15;
 
-        #2 reset = 0; // Deassert reset
 
-        // Test: Entry to parking
-        #50 Entry_sensor = 1; // Car at entry
-        #60 Entry_sensor = 0; // Car entered
+        input_file = $fopen("input.txt", "r");
+        output_file = $fopen("output.txt", "w");
 
-        // Test: Another entry
-        #50 Entry_sensor = 1;
-        #60 Entry_sensor = 0;
+        if (input_file == 0 || output_file == 0) begin
+            $display("Failed to open file.");
+            $finish;
+        end
 
-        // Test: Another entry
-        #50 Entry_sensor = 1;
-        #60 Entry_sensor = 0;
+        while (!$feof(input_file)) begin
+            scan_file = $fscanf(input_file, "%4b\n", input_data);
+            Entry_sensor = input_data[3];
+            Exit_sensor = input_data[2];
+            Exit_parking = input_data[1:0];
+            $display("Read input: Entry_sensor=%b, Exit_sensor = %b , Exit_Parking=%b", Entry_sensor, Exit_sensor, Exit_parking); 
+            #100;
+            if (capacity == 0) 
+            begin
+                $fwrite(output_file, "%b%b%b%b [%d,-]\t", parkings[3] , parkings[2] , parkings[1] , parkings[0], capacity);
+            end else
+            begin
+                $fwrite(output_file, "%b%b%b%b [%d,%d]\t", parkings[3] , parkings[2] , parkings[1] , parkings[0], capacity, location);
+            end
+            if (internal_open_door) begin
+                $fwrite(output_file, "Door");
+            end else if (internal_full) begin
+                $fwrite(output_file, "Full");
+            end
+            $fwrite(output_file, "\n");
+            #890;
+        end
 
-        // Test: Another entry
-        #50 Entry_sensor = 1;
-        #60 Entry_sensor = 0;
-
-        // Test: Another entry
-        #50 Entry_sensor = 1;
-        #50 Entry_sensor = 0;
-
-        // Wait for FULL state to complete (6 seconds)
-        #100;
-
-        // Test: Exit from parking
-        #10 Exit_sensor = 1;
-        Exit_parking = 2'b01; // Car exiting from location 1
-        #40 Exit_sensor = 0;
-
-        // Wait for DOOR_OPEN state to complete (10 seconds)
-        #100;
-
-        // Test: Reset and reinitialize
-        #20 reset = 1;
-        #40 reset = 0;
-
-        #200 $finish; // End simulation
+        $fclose(input_file);
+        $fclose(output_file);
+        $finish;
     end
 
     // Monitor signals
