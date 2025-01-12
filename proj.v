@@ -1,324 +1,599 @@
-module main(
-    input wire clk,
-    input wire reset,
-    input wire Entry_sensor,
-    input wire Exit_sensor,
-    input wire [1:0] Exit_parking,
-    output wire Full_light,
-    output wire Door_Open_light,
-    output reg [3:0] parkings,
-    output reg [2:0] capacity,
-    output reg [1:0] location,
-    output reg [2:0] state,
-    output reg internal_full,
-    output reg internal_open_door
+`timescale 1ns / 1ps
+
+module FrequencyDividerController (
+
+input wire clk,
+
+input wire reset,
+
+input wire full,
+
+input wire open_door,
+
+output reg open_door_output,
+
+output reg full_output
+
 );
 
+
+
+reg [3:0] full_counter;
+
+reg [23:0] door_counter;
+
+reg [25:0] clk_divider_1Hz;
+
+reg [24:0] clk_divider_2Hz;
+
+
+
+initial begin
+
+full_counter = 0;
+
+door_counter = 0;
+
+full_output = 0;
+
+open_door_output = 0;
+
+end
+
+
+
+always @(posedge clk or posedge reset) begin
+
+if (reset) begin
+
+clk_divider_1Hz <= 0;
+
+clk_divider_2Hz <= 0;
+
+full_counter <= 0;
+
+door_counter <= 0;
+
+full_output <= 0;
+
+open_door_output <= 0;
+
+end
+
+else begin
+
+if(full) begin
+
+open_door_output <= 0;
+
+door_counter <= 0;
+
+if (full_counter < 6) begin
+
+if (clk_divider_1Hz == 40000000) begin
+
+full_counter <= full_counter + 1;
+
+full_output <= ~full_output;
+
+clk_divider_1Hz <= 0;
+
+end
+
+else begin
+
+clk_divider_1Hz <= clk_divider_1Hz + 1;
+
+end
+
+end
+
+else begin
+
+full_output <= 0;
+
+end
+
+end
+
+else if(open_door) begin
+
+full_output <= 0;
+
+full_counter <= 0;
+
+if (door_counter < 40) begin
+
+if (clk_divider_2Hz == 10000000) begin
+
+door_counter <= door_counter + 1;
+
+open_door_output <= ~open_door_output;
+
+clk_divider_2Hz <= 0;
+
+end
+
+else begin
+
+clk_divider_2Hz <= clk_divider_2Hz + 1;
+
+end
+
+end
+
+else begin
+
+open_door_output <= 0;
+
+end
+
+end
+
+else begin
+
+open_door_output <= 0;
+
+full_counter <= 0;
+
+door_counter <= 0;
+
+full_output <= 0;
+
+end
+
+end
+
+end
+
+
+
+endmodule
+
+
+
+
+
+module seven_segment_display(
+
+input wire clk,
+
+input wire [5:0] s1a,
+
+output reg [7:0] set_Data,
+
+output reg [4:0] see_sel
+
+);
+
+reg [3:0] digit;
+
+reg [1:0] digit_select;
+
+reg [21:0] refresh_counter;
+
+
+
+
+
+always @(posedge clk) begin
+
+if (refresh_counter[9] == 1)
+
+refresh_counter <= 0;
+
+else
+
+refresh_counter <= refresh_counter + 1;
+
+end
+
+
+
+always @(digit) begin
+
+case (digit)
+
+4'd0: set_Data = 8'b00111111;
+
+4'd1: set_Data = 8'b00000110;
+
+4'd2: set_Data = 8'b01011011;
+
+4'd3: set_Data = 8'b01001111;
+
+4'd4: set_Data = 8'b01100110;
+
+4'd5: set_Data = 8'b01101101;
+
+4'd6: set_Data = 8'b01111101;
+
+4'd7: set_Data = 8'b01000000;
+
+4'd8: set_Data = 8'b01111111;
+
+4'd9: set_Data = 8'b01101111;
+
+default: set_Data = 8'b00000000;
+
+endcase
+
+end
+
+
+
+always @(posedge clk) begin
+
+if (refresh_counter[9] == 1) begin
+
+if(digit_select < 3)
+
+digit_select <= digit_select + 1;
+
+else
+
+digit_select <= 0;
+
+
+
+case (digit_select)
+
+2'b11: begin
+
+digit = s1a[2:0];
+
+see_sel = 5'b00001;
+
+end
+
+2'b10: begin
+
+digit = 4'b0000;
+
+see_sel = 5'b00010;
+
+end
+
+2'b01: begin
+
+digit = s1a[5:3];
+
+see_sel = 5'b00100;
+
+end
+
+2'b00: begin
+
+digit = 4'b0000;
+
+see_sel = 5'b01000;
+
+end
+
+endcase
+
+end
+
+end
+
+endmodule
+
+
+
+
+
+module main(
+
+input wire clk,
+
+input wire reset,
+
+input wire Entry_sensor,
+
+input wire Exit_sensor,
+
+input wire [1:0] Exit_parking,
+
+output wire Full_light,
+
+output wire Door_Open_light,
+
+output reg [3:0] parkings,
+
+output [4:0] seven_seg,
+
+output [7:0] seg_data
+
+);
+
+
+
 parameter IDLE = 3'b000,
-          CHECK_ENTRY = 3'b001,
-          CHECK_EXIT = 3'b010,
-          FULL = 3'b011,
-          DOOR_OPEN = 3'b100,
-          UPDATE_DISPLAY = 3'b110;
+
+CHECK_ENTRY = 3'b001,
+
+CHECK_EXIT = 3'b010,
+
+FULL = 3'b011,
+
+DOOR_OPEN = 3'b100;
+
+
 
 reg [2:0] current_state, next_state;
 
+reg [2:0] location, next_location;
+
+reg [2:0] capacity, next_capacity;
+
+reg internal_full, internal_open_door;
+
+reg [31:0] delay_counter;
+
+reg [3:0] next_parkings;
+
+reg [5:0] data7;
+
+
+
 wire open_door;
+
 wire full;
 
+wire [5:0]data;
+
+
+
+assign data = data7;
 
 assign full = internal_full;
+
 assign open_door = internal_open_door;
 
 
 
-reg [31:0] delay_counter;
+seven_segment_display display (
 
-FrequencyDividerController controller(
-    .clk(clk),
-    .reset(reset),
-    .full(full),
-    .open_door(open_door),
-    .open_door_output(Door_Open_light),
-    .full_output(Full_light)
+.clk(clk),
+
+.s1a(data),
+
+.set_Data(seg_data),
+
+.see_sel(seven_seg)
+
 );
 
+
+
+FrequencyDividerController controller (
+
+.clk(clk),
+
+.reset(reset),
+
+.full(full),
+
+.open_door(open_door),
+
+.open_door_output(Door_Open_light),
+
+.full_output(Full_light)
+
+);
+
+
+
 initial begin
-    current_state = IDLE;
-    internal_full = 0;
-    internal_open_door =0;
-    parkings = 4'b0000;
-    location = 2'b00;
-    capacity = 3'b100;
-    delay_counter = 0;
+
+current_state = IDLE;
+
+internal_full = 0;
+
+internal_open_door = 0;
+
+parkings = 4'b0000;
+
+next_parkings = 4'b0000;
+
+next_location = 3'b000;
+
+next_capacity = 3'b100;
+
+location = 3'b000;
+
+capacity = 3'b100;
+
 end
 
+
+
+always @(posedge clk)begin
+
+data7[2:0] <= location;
+
+data7[5:3] <= capacity;
+
+end
+
+
+
+
+
+
+
+always @(posedge clk) begin
+
+if (reset) begin
+
+delay_counter <= 0;
+
+end
+
+else if (internal_full) begin
+
+if (delay_counter <= 6 * 40000000)
+
+delay_counter <= delay_counter + 1;
+
+else
+
+delay_counter <= 0;
+
+end
+
+else if (internal_open_door) begin
+
+if (delay_counter <= 10 * 40000000)
+
+delay_counter <= delay_counter + 1;
+
+else
+
+delay_counter <= 0;
+
+end
+
+else begin
+
+delay_counter <= 0;
+
+end
+
+end
 always @(posedge clk or posedge reset) begin
-    state <= current_state;
+
     if (reset) begin
-        parkings = 4'b0000;
-        location = 2'b00;
-        capacity = 3'b100;
-        delay_counter = 0;
+
         current_state <= IDLE;
-    end else begin
-        current_state <= next_state;
+
+        parkings <= 4'b0000;
+
+        location <= 3'b000;
+
+        capacity <= 3'b100;
+
     end
-end
 
-always @(posedge clk) begin
-    if (reset) begin
-        delay_counter <= 0;
-    end 
-    else if (internal_open_door || internal_full) begin
-        if (current_state == FULL) begin
-            if (delay_counter < 41) 
-                delay_counter <= delay_counter + 1;
-            else
-                delay_counter <= 0; 
-        end else if (current_state == DOOR_OPEN) begin
-            if (delay_counter < 51) 
-                delay_counter <= delay_counter + 1;
-            else
-                delay_counter <= 0; 
-        end 
-        else begin
-            delay_counter <= 0; 
-        end
-    end
-    else
-        delay_counter <= 0;
-end
-
-always @(posedge clk) begin
-    case (current_state)
-        IDLE: begin
-            next_state = Entry_sensor ? CHECK_ENTRY :
-                         Exit_sensor ? CHECK_EXIT : IDLE;
-        end
-        CHECK_ENTRY: begin
-            if (capacity == 0) 
-                next_state = FULL;
-            else begin
-                parkings[location] = 1;
-                location <= (parkings[0] == 0) ? 2'b00 :
-                            (parkings[1] == 0) ? 2'b01 :
-                            (parkings[2] == 0) ? 2'b10 : 2'b11;
-                capacity <= capacity - 1;
-                next_state = DOOR_OPEN;
-            end
-        end
-        CHECK_EXIT: begin
-            if(capacity == 3'b100 | parkings[Exit_parking] == 0)begin
-                next_state = IDLE;
-            end 
-            else begin
-            parkings[Exit_parking] = 0;
-            location <= (parkings[0] == 0) ? 2'b00 :
-                        (parkings[1] == 0) ? 2'b01 :
-                        (parkings[2] == 0) ? 2'b10 : 2'b11;
-            capacity = capacity + 1;
-            next_state = DOOR_OPEN;
-            end
-        end
-        FULL: begin
-        //3times 1s
-            internal_full = 1;
-            if (delay_counter == 36)begin
-                internal_full = 0;
-                next_state = IDLE;
-            end
-            else
-                next_state = FULL;
-        end
-        DOOR_OPEN: begin
-            //10 s / 2hz
-            internal_open_door = 1;
-            if (delay_counter == 35)begin
-                internal_open_door = 0;
-                next_state = IDLE;
-            end
-            else
-                next_state = DOOR_OPEN;
-        end
-    endcase
-end
-endmodule
-
-module FrequencyDividerController (
-    input wire clk,
-    input wire reset,
-    input wire full,
-    input wire open_door,
-    output reg open_door_output, // open door 1
-    output reg full_output // full 1
-);
-
-reg [3:0] full_counter;
-reg [23:0] door_counter;
-reg [25:0] clk_divider_1Hz;
-reg [24:0] clk_divider_2Hz;
-
-initial begin
-    full_counter = 0;
-    door_counter = 0;
-    full_output = 0;
-    open_door_output = 0;
-end
-
-always @(posedge clk or posedge reset) begin
-    if (reset) begin
-        clk_divider_1Hz <= 0;
-        clk_divider_2Hz <= 0;
-        full_counter <= 0;
-        door_counter <= 0;
-        full_output <= 0;
-        open_door_output <= 0;
-    end 
     else begin
-        if(open_door) begin
-            full_output <= 0;
-            full_counter <= 0;
-            if (door_counter < 10) begin 
-                if (clk_divider_2Hz == 2) begin
-                    door_counter <= door_counter + 1;
-                    open_door_output <= ~open_door_output;
-                    clk_divider_2Hz <= 0;
-                end
-                else begin
-                    clk_divider_2Hz <= clk_divider_2Hz + 1;
-                end
-            end 
-            else begin
-                open_door_output <= 0;
-            end
-        end
-        else if(full) begin
-                open_door_output <= 0;
-                door_counter <= 0;
-                if (full_counter < 6) begin 
-                    if (clk_divider_1Hz == 2) begin
-                        full_counter <= full_counter + 1;   
-                        full_output <= ~full_output;
-                        clk_divider_1Hz <= 0;
-                    end
-                    else begin
-                        clk_divider_1Hz <= clk_divider_1Hz + 1;
-                    end
-                end 
-                else begin
-                    full_output <= 0;
-                end
-            end
-            else begin
-                open_door_output <= 0;
-                full_counter <= 0;
-                door_counter <= 0;
-                full_output <= 0;
-            end
+
+        current_state <= next_state;
+
+        capacity <= next_capacity;
+
+        parkings <= next_parkings;
+
+        location <= next_location;
+
     end
+
 end
 
-endmodule
-module main_tb;
 
-    reg clk;
-    reg reset;
-    reg Entry_sensor;
-    reg Exit_sensor;
-    reg [1:0] Exit_parking;
 
-    wire Full_light;
-    wire Door_Open_light;
-    wire [3:0] parkings;
-    wire [2:0] capacity;
-    wire [1:0] location;
-    wire [2:0] state;
-    wire internal_full;
-    wire internal_open_door;
+always @(posedge clk) begin
 
-    // Instantiate the main module
-    main uut (
-        .clk(clk),
-        .reset(reset),
-        .Entry_sensor(Entry_sensor),
-        .Exit_sensor(Exit_sensor),
-        .Exit_parking(Exit_parking),
-        .Full_light(Full_light),
-        .Door_Open_light(Door_Open_light),
-        .parkings(parkings),
-        .capacity(capacity),
-        .location(location),
-        .state(state),
-        .internal_full(internal_full),
-        .internal_open_door(internal_open_door)
-    );
+    next_state = current_state;
 
-    // Clock generation
-    initial begin
-        clk = 0;
-        forever #12.5 clk = ~clk; 
-    end
+    next_capacity = capacity;
+
+    next_parkings = parkings;
 
 
 
-    integer input_file, output_file, scan_file;
-    reg [3:0] input_data;
+    case (current_state)
 
-    // Test sequence
-    initial begin
-        $dumpfile("main_tb.vcd");
-        $dumpvars(0, main_tb);
+        IDLE: begin
 
-        reset = 1;
-        Entry_sensor = 0;
-        Exit_sensor = 0;
-        Exit_parking = 2'b00;
-        input_data = 4'b0000;
-        #25;
-        reset = 0;
-        #15;
+            internal_full = 0;
 
+            internal_open_door = 0;
 
-        input_file = $fopen("input.txt", "r");
-        output_file = $fopen("output.txt", "w");
+            if (~Entry_sensor) next_state = CHECK_ENTRY;
 
-        if (input_file == 0 || output_file == 0) begin
-            $display("Failed to open file.");
-            $finish;
+            else if (~Exit_sensor) next_state = CHECK_EXIT;
+
         end
 
-        while (!$feof(input_file)) begin
-            scan_file = $fscanf(input_file, "%4b\n", input_data);
-            Entry_sensor = input_data[3];
-            Exit_sensor = input_data[2];
-            Exit_parking = input_data[1:0];
-            $display("Read input: Entry_sensor=%b, Exit_sensor = %b , Exit_Parking=%b", Entry_sensor, Exit_sensor, Exit_parking); 
-            #100;
-            if (capacity == 0) 
-            begin
-                $fwrite(output_file, "%b%b%b%b [%d,-]\t", parkings[3] , parkings[2] , parkings[1] , parkings[0], capacity);
-            end else
-            begin
-                $fwrite(output_file, "%b%b%b%b [%d,%d]\t", parkings[3] , parkings[2] , parkings[1] , parkings[0], capacity, location);
+        CHECK_ENTRY: begin
+
+            if (capacity == 0 || location == 3'b111) begin
+
+                next_state = FULL;
+
+            end else begin
+
+                next_parkings[location] = 1;
+
+                next_capacity = capacity - 1;
+
+                next_state = DOOR_OPEN;
+
             end
-            if (internal_open_door) begin
-                $fwrite(output_file, "Door");
-            end else if (internal_full) begin
-                $fwrite(output_file, "Full");
-            end
-            $fwrite(output_file, "\n");
-            #890;
+
         end
 
-        $fclose(input_file);
-        $fclose(output_file);
-        $finish;
-    end
+        FULL: begin
 
-    // Monitor signals
-    initial begin
-        $monitor("Time: %d | Reset: %b | Entry: %b | Exit: %b | Full: %b | Door: %b | Parkings: %b | Capacity: %b | Location: %b | State: %b",
-            $time, reset, Entry_sensor, Exit_sensor, Full_light, Door_Open_light, parkings, capacity, location , state);
-    end
+            internal_full = 1;
+
+            if (delay_counter == 6*40000000 - 2) begin
+
+                internal_full = 0;
+
+                next_state = IDLE;
+
+            end
+
+        end
+
+        DOOR_OPEN: begin
+
+            internal_open_door = 1;
+
+            if (delay_counter == 10*40000000 - 2) begin
+
+                internal_open_door = 0;
+
+                next_state = IDLE;
+
+            end
+
+        end
+
+        CHECK_EXIT: begin
+
+            if (capacity == 3'b100 || parkings[Exit_parking] == 0) begin
+
+                next_state = IDLE;
+
+            end else begin
+
+                next_parkings[Exit_parking] = 0;
+
+                next_capacity = capacity + 1;
+
+                next_state = DOOR_OPEN;
+
+            end
+
+        end
+
+    endcase
+
+end
+
+
+
+always @(posedge clk) begin
+
+    next_location = (parkings[0] == 0) ? 3'b000 :
+
+                    (parkings[1] == 0) ? 3'b001 :
+
+                    (parkings[2] == 0) ? 3'b010 :
+
+                    (parkings[3] == 0) ? 3'b011 : 3'b111;
+
+end
 endmodule
