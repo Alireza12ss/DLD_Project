@@ -159,9 +159,6 @@ module seven_segment_display (
   reg [21:0] refresh_counter;
 
 
-
-
-
   always @(posedge clk) begin
 
     if (refresh_counter[9] == 1) refresh_counter <= 0;
@@ -600,14 +597,12 @@ DOOR_OPEN = 3'b100;
 
 
   always @(posedge clk) begin
-
     next_location = (parkings[0] == 0) ? 3'b000 :
 
                     (parkings[1] == 0) ? 3'b001 :
 
                     (parkings[2] == 0) ? 3'b010 :
 
-                    (parkings[3] == 0) ? 3'b011 : 3'b111;
-
+                    (parkings[3] == 0) ? 3'b011 : 3'b000;
   end
 endmodule
