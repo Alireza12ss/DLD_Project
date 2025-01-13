@@ -2,149 +2,135 @@
 
 module FrequencyDividerController (
 
-input wire clk,
+    input wire clk,
 
-input wire reset,
+    input wire reset,
 
-input wire full,
+    input wire full,
 
-input wire open_door,
+    input wire open_door,
 
-output reg open_door_output,
+    output reg open_door_output,
 
-output reg full_output
+    output reg full_output
 
 );
 
 
 
-reg [3:0] full_counter;
+  reg [ 3:0] full_counter;
 
-reg [23:0] door_counter;
+  reg [23:0] door_counter;
 
-reg [25:0] clk_divider_1Hz;
+  reg [25:0] clk_divider_1Hz;
 
-reg [24:0] clk_divider_2Hz;
+  reg [24:0] clk_divider_2Hz;
 
 
 
-initial begin
+  initial begin
 
-full_counter = 0;
+    full_counter = 0;
 
-door_counter = 0;
+    door_counter = 0;
 
-full_output = 0;
+    full_output = 0;
 
-open_door_output = 0;
+    open_door_output = 0;
 
-end
+  end
 
 
 
-always @(posedge clk or posedge reset) begin
+  always @(posedge clk or posedge reset) begin
 
-if (reset) begin
+    if (reset) begin
 
-clk_divider_1Hz <= 0;
+      clk_divider_1Hz <= 0;
 
-clk_divider_2Hz <= 0;
+      clk_divider_2Hz <= 0;
 
-full_counter <= 0;
+      full_counter <= 0;
 
-door_counter <= 0;
+      door_counter <= 0;
 
-full_output <= 0;
+      full_output <= 0;
 
-open_door_output <= 0;
+      open_door_output <= 0;
 
-end
+    end else begin
 
-else begin
+      if (full) begin
 
-if(full) begin
+        open_door_output <= 0;
 
-open_door_output <= 0;
+        door_counter <= 0;
 
-door_counter <= 0;
+        if (full_counter < 6) begin // 6 times
 
-if (full_counter < 6) begin
+          if (clk_divider_1Hz == 40000000) begin // per 1 second
 
-if (clk_divider_1Hz == 40000000) begin
+            full_counter <= full_counter + 1;
 
-full_counter <= full_counter + 1;
+            full_output <= ~full_output;
 
-full_output <= ~full_output;
+            clk_divider_1Hz <= 0;
 
-clk_divider_1Hz <= 0;
+          end else begin
 
-end
+            clk_divider_1Hz <= clk_divider_1Hz + 1;
 
-else begin
+          end
 
-clk_divider_1Hz <= clk_divider_1Hz + 1;
+        end else begin
 
-end
+          full_output <= 0;
 
-end
+        end
 
-else begin
+      end else if (open_door) begin
 
-full_output <= 0;
+        full_output  <= 0;
 
-end
+        full_counter <= 0;
 
-end
+        if (door_counter < 40) begin // 40 times
 
-else if(open_door) begin
+          if (clk_divider_2Hz == 10000000) begin // per 0.25 second
 
-full_output <= 0;
+            door_counter <= door_counter + 1;
 
-full_counter <= 0;
+            open_door_output <= ~open_door_output;
 
-if (door_counter < 40) begin
+            clk_divider_2Hz <= 0;
 
-if (clk_divider_2Hz == 10000000) begin
+          end else begin
 
-door_counter <= door_counter + 1;
+            clk_divider_2Hz <= clk_divider_2Hz + 1;
 
-open_door_output <= ~open_door_output;
+          end
 
-clk_divider_2Hz <= 0;
+        end else begin
 
-end
+          open_door_output <= 0;
 
-else begin
+        end
 
-clk_divider_2Hz <= clk_divider_2Hz + 1;
+      end else begin
 
-end
+        open_door_output <= 0;
 
-end
+        full_counter <= 0;
 
-else begin
+        door_counter <= 0;
 
-open_door_output <= 0;
+        full_output <= 0;
 
-end
+      end
 
-end
+    end
 
-else begin
-
-open_door_output <= 0;
-
-full_counter <= 0;
-
-door_counter <= 0;
-
-full_output <= 0;
-
-end
-
-end
-
-end
+  end
 
 
 
@@ -154,127 +140,119 @@ endmodule
 
 
 
-module seven_segment_display(
+module seven_segment_display (
 
-input wire clk,
+    input wire clk,
 
-input wire [5:0] s1a,
+    input wire [5:0] s1a,
 
-output reg [7:0] set_Data,
+    output reg [7:0] set_Data,
 
-output reg [4:0] see_sel
+    output reg [4:0] see_sel
 
 );
 
-reg [3:0] digit;
+  reg [ 3:0] digit;
 
-reg [1:0] digit_select;
+  reg [ 1:0] digit_select;
 
-reg [21:0] refresh_counter;
-
-
+  reg [21:0] refresh_counter;
 
 
 
-always @(posedge clk) begin
 
-if (refresh_counter[9] == 1)
 
-refresh_counter <= 0;
+  always @(posedge clk) begin  // update rate
 
-else
+    if (refresh_counter[9] == 1) refresh_counter <= 0;
 
-refresh_counter <= refresh_counter + 1;
+    else refresh_counter <= refresh_counter + 1;
 
-end
+  end
 
 
 
-always @(digit) begin
+  always @(digit) begin
 
-case (digit)
+    case (digit)
 
-4'd0: set_Data = 8'b00111111;
+      4'd0: set_Data = 8'b00111111;
 
-4'd1: set_Data = 8'b00000110;
+      4'd1: set_Data = 8'b00000110;
 
-4'd2: set_Data = 8'b01011011;
+      4'd2: set_Data = 8'b01011011;
 
-4'd3: set_Data = 8'b01001111;
+      4'd3: set_Data = 8'b01001111;
 
-4'd4: set_Data = 8'b01100110;
+      4'd4: set_Data = 8'b01100110;
 
-4'd5: set_Data = 8'b01101101;
+      4'd5: set_Data = 8'b01101101;
 
-4'd6: set_Data = 8'b01111101;
+      4'd6: set_Data = 8'b01111101;
 
-4'd7: set_Data = 8'b01000000;
+      4'd7: set_Data = 8'b01000000;
 
-4'd8: set_Data = 8'b01111111;
+      4'd8: set_Data = 8'b01111111;
 
-4'd9: set_Data = 8'b01101111;
+      4'd9: set_Data = 8'b01101111;
 
-default: set_Data = 8'b00000000;
+      default: set_Data = 8'b00000000;
 
-endcase
+    endcase
 
-end
-
-
-
-always @(posedge clk) begin
-
-if (refresh_counter[9] == 1) begin
-
-if(digit_select < 3)
-
-digit_select <= digit_select + 1;
-
-else
-
-digit_select <= 0;
+  end
 
 
 
-case (digit_select)
+  always @(posedge clk) begin // update digits
 
-2'b11: begin
+    if (refresh_counter[9] == 1) begin
 
-digit = s1a[2:0];
+      if (digit_select < 3) digit_select <= digit_select + 1;
 
-see_sel = 5'b00001;
+      else digit_select <= 0;
 
-end
 
-2'b10: begin
 
-digit = 4'b0000;
+      case (digit_select)
 
-see_sel = 5'b00010;
+        2'b11: begin
 
-end
+          digit   = s1a[2:0];
 
-2'b01: begin
+          see_sel = 5'b00001;
 
-digit = s1a[5:3];
+        end
 
-see_sel = 5'b00100;
+        2'b10: begin
 
-end
+          digit   = 4'b0000;
 
-2'b00: begin
+          see_sel = 5'b00010;
 
-digit = 4'b0000;
+        end
 
-see_sel = 5'b01000;
+        2'b01: begin
 
-end
+          digit   = s1a[5:3];
 
-endcase
+          see_sel = 5'b00100;
 
-end
+        end
 
-end
+        2'b00: begin
+
+          digit   = 4'b0000;
+
+          see_sel = 5'b01000;
+
+        end
+
+      endcase
+
+    end
+
+  end
 
 endmodule
 
@@ -282,33 +260,33 @@ endmodule
 
 
 
-module main(
+module main (
 
-input wire clk,
+    input wire clk,
 
-input wire reset,
+    input wire reset,
 
-input wire Entry_sensor,
+    input wire Entry_sensor,
 
-input wire Exit_sensor,
+    input wire Exit_sensor,
 
-input wire [1:0] Exit_parking,
+    input wire [1:0] Exit_parking,
 
-output wire Full_light,
+    output wire Full_light,
 
-output wire Door_Open_light,
+    output wire Door_Open_light,
 
-output reg [3:0] parkings,
+    output reg [3:0] parkings,
 
-output [4:0] seven_seg,
+    output [4:0] seven_seg,
 
-output [7:0] seg_data
+    output [7:0] seg_data
 
 );
 
 
 
-parameter IDLE = 3'b000,
+  parameter IDLE = 3'b000,
 
 CHECK_ENTRY = 3'b001,
 
@@ -320,101 +298,101 @@ DOOR_OPEN = 3'b100;
 
 
 
-reg [2:0] current_state, next_state;
+  reg [2:0] current_state, next_state;
 
-reg [2:0] location, next_location;
+  reg [2:0] location, next_location;
 
-reg [2:0] capacity, next_capacity;
+  reg [2:0] capacity, next_capacity;
 
-reg internal_full, internal_open_door;
+  reg internal_full, internal_open_door;
 
-reg [31:0] delay_counter;
+  reg [31:0] delay_counter;
 
-reg [3:0] next_parkings;
+  reg [3:0] next_parkings;
 
-reg [5:0] data7;
+  reg [5:0] data7;
 
 
 
-wire open_door;
+  wire open_door;
 
-wire full;
+  wire full;
 
-wire [5:0]data;
+  wire [5:0] data;
 
 
 
-assign data = data7;
+  assign data = data7;
 
-assign full = internal_full;
+  assign full = internal_full;
 
-assign open_door = internal_open_door;
+  assign open_door = internal_open_door;
 
 
 
-seven_segment_display display (
+  seven_segment_display display (
 
-.clk(clk),
+      .clk(clk),
 
-.s1a(data),
+      .s1a(data),
 
-.set_Data(seg_data),
+      .set_Data(seg_data),
 
-.see_sel(seven_seg)
+      .see_sel(seven_seg)
 
-);
+  );
 
 
 
-FrequencyDividerController controller (
+  FrequencyDividerController controller (
 
-.clk(clk),
+      .clk(clk),
 
-.reset(reset),
+      .reset(reset),
 
-.full(full),
+      .full(full),
 
-.open_door(open_door),
+      .open_door(open_door),
 
-.open_door_output(Door_Open_light),
+      .open_door_output(Door_Open_light),
 
-.full_output(Full_light)
+      .full_output(Full_light)
 
-);
+  );
 
 
 
-initial begin
+  initial begin
 
-current_state = IDLE;
+    current_state = IDLE;
 
-internal_full = 0;
+    internal_full = 0;
 
-internal_open_door = 0;
+    internal_open_door = 0;
 
-parkings = 4'b0000;
+    parkings = 4'b0000;
 
-next_parkings = 4'b0000;
+    next_parkings = 4'b0000;
 
-next_location = 3'b000;
+    next_location = 3'b000;
 
-next_capacity = 3'b100;
+    next_capacity = 3'b100;
 
-location = 3'b000;
+    location = 3'b000;
 
-capacity = 3'b100;
+    capacity = 3'b100;
 
-end
+  end
 
 
 
-always @(posedge clk)begin
+  always @(posedge clk) begin
 
-data7[2:0] <= location;
+    data7[2:0] <= location;
 
-data7[5:3] <= capacity;
+    data7[5:3] <= capacity;
 
-end
+  end
 
 
 
@@ -422,76 +400,62 @@ end
 
 
 
-always @(posedge clk) begin
-
-if (reset) begin
-
-delay_counter <= 0;
-
-end
-
-else if (internal_full) begin
-
-if (delay_counter <= 6 * 40000000)
-
-delay_counter <= delay_counter + 1;
-
-else
-
-delay_counter <= 0;
-
-end
-
-else if (internal_open_door) begin
-
-if (delay_counter <= 10 * 40000000)
-
-delay_counter <= delay_counter + 1;
-
-else
-
-delay_counter <= 0;
-
-end
-
-else begin
-
-delay_counter <= 0;
-
-end
-
-end
-always @(posedge clk or posedge reset) begin
+  always @(posedge clk) begin //stop in states
 
     if (reset) begin
 
-        current_state <= IDLE;
+      delay_counter <= 0;
 
-        parkings <= 4'b0000;
+    end else if (internal_full) begin
 
-        location <= 3'b000;
+      if (delay_counter <= 6 * 40000000) delay_counter <= delay_counter + 1;
 
-        capacity <= 3'b100;
+      else delay_counter <= 0;
 
-    end
+    end else if (internal_open_door) begin
 
-    else begin
+      if (delay_counter <= 10 * 40000000) delay_counter <= delay_counter + 1;
 
-        current_state <= next_state;
+      else delay_counter <= 0;
 
-        capacity <= next_capacity;
+    end else begin
 
-        parkings <= next_parkings;
-
-        location <= next_location;
+      delay_counter <= 0;
 
     end
 
-end
+  end
+
+
+  always @(posedge clk or posedge reset) begin // update values
+
+    if (reset) begin
+
+      current_state <= IDLE;
+
+      parkings <= 4'b0000;
+
+      location <= 3'b000;
+
+      capacity <= 3'b100;
+
+    end else begin
+
+      current_state <= next_state;
+
+      capacity <= next_capacity;
+
+      parkings <= next_parkings;
+
+      location <= next_location;
+
+    end
+
+  end
 
 
 
-always @(posedge clk) begin
+  always @(posedge clk) begin
 
     next_state = current_state;
 
@@ -503,89 +467,89 @@ always @(posedge clk) begin
 
     case (current_state)
 
-        IDLE: begin
+      IDLE: begin
 
-            internal_full = 0;
+        internal_full = 0;
 
-            internal_open_door = 0;
+        internal_open_door = 0;
 
-            if (~Entry_sensor) next_state = CHECK_ENTRY;
+        if (~Entry_sensor) next_state = CHECK_ENTRY;
 
-            else if (~Exit_sensor) next_state = CHECK_EXIT;
+        else if (~Exit_sensor) next_state = CHECK_EXIT;
 
-        end
+      end
 
-        CHECK_ENTRY: begin
+      CHECK_ENTRY: begin
 
-            if (capacity == 0 || location == 3'b111) begin
+        if (capacity == 0 || location == 3'b111) begin
 
-                next_state = FULL;
+          next_state = FULL;
 
-            end else begin
+        end else begin
 
-                next_parkings[location] = 1;
+          next_parkings[location] = 1;
 
-                next_capacity = capacity - 1;
+          next_capacity = capacity - 1;
 
-                next_state = DOOR_OPEN;
-
-            end
+          next_state = DOOR_OPEN;
 
         end
 
-        FULL: begin
+      end
 
-            internal_full = 1;
+      FULL: begin
 
-            if (delay_counter == 6*40000000 - 2) begin
+        internal_full = 1;
 
-                internal_full = 0;
+        if (delay_counter == 6 * 40000000 - 2) begin
 
-                next_state = IDLE;
+          internal_full = 0;
 
-            end
-
-        end
-
-        DOOR_OPEN: begin
-
-            internal_open_door = 1;
-
-            if (delay_counter == 10*40000000 - 2) begin
-
-                internal_open_door = 0;
-
-                next_state = IDLE;
-
-            end
+          next_state = IDLE;
 
         end
 
-        CHECK_EXIT: begin
+      end
 
-            if (capacity == 3'b100 || parkings[Exit_parking] == 0) begin
+      DOOR_OPEN: begin
 
-                next_state = IDLE;
+        internal_open_door = 1;
 
-            end else begin
+        if (delay_counter == 10 * 40000000 - 2) begin
 
-                next_parkings[Exit_parking] = 0;
+          internal_open_door = 0;
 
-                next_capacity = capacity + 1;
-
-                next_state = DOOR_OPEN;
-
-            end
+          next_state = IDLE;
 
         end
+
+      end
+
+      CHECK_EXIT: begin
+
+        if (capacity == 3'b100 || parkings[Exit_parking] == 0) begin
+
+          next_state = IDLE;
+
+        end else begin
+
+          next_parkings[Exit_parking] = 0;
+
+          next_capacity = capacity + 1;
+
+          next_state = DOOR_OPEN;
+
+        end
+
+      end
 
     endcase
 
-end
+  end
 
 
 
-always @(posedge clk) begin
+  always @(posedge clk) begin
 
     next_location = (parkings[0] == 0) ? 3'b000 :
 
@@ -595,5 +559,7 @@ always @(posedge clk) begin
 
                     (parkings[3] == 0) ? 3'b011 : 3'b111;
 
-end
+  end
+
+
 endmodule
